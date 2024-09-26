@@ -1,9 +1,9 @@
 name: Build and Release
 
-on: 
+on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
 
 jobs:
   build:
@@ -46,22 +46,8 @@ jobs:
 
     - name: Create or Update Release
       id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: latest
-        release_name: latest
-        draft: false
-        prerelease: false
+      run: |
+        gh release create latest ./chap --clobber --title "latest" --notes "Latest release"
 
-    - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./chap
-        asset_name: chap
-        asset_content_type: application/octet-stream
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
