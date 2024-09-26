@@ -47,7 +47,7 @@ jobs:
     - name: Create or Update Release
       id: create_release
       run: |
-        gh release create latest ./chap --clobber --title "latest" --notes "Latest release"
+        gh release create latest ./chap --latest --title "latest" --notes "Latest release"
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
