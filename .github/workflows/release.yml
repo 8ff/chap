@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -76,19 +78,45 @@ jobs:
           tag_name: ${{ env.TAG }}
           delete_release: true
 
+      - name: Debug Info
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          git log -1
+          git status
+
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v6
         with:
-          tag_name: ${{ env.TAG }}
-          release_name: ${{ env.RELEASE_NAME }}
-          body: ${{ github.event.inputs.releaseNote || 'Automated release' }}
-          draft: false
-          prerelease: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const eventName = '${{ github.event_name }}';
+            const releaseNote = eventName === 'workflow_dispatch' 
+              ? '${{ github.event.inputs.releaseNote || 'Manual release' }}'
+              : `Automated release for commit ${process.env.GITHUB_SHA.substring(0, 7)}`;
+            
+            try {
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: '${{ env.TAG }}',
+                name: '${{ env.RELEASE_NAME }}',
+                body: releaseNote,
+                draft: false,
+                prerelease: false,
+                generate_release_notes: true
+              });
+              console.log(`Release created successfully: ${release.data.html_url}`);
+              return release.data.upload_url;
+            } catch (error) {
+              console.error(`Failed to create release: ${error.message}`);
+              throw error;
+            }
 
       - name: Upload Release Assets
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: actions/github-script@v6
@@ -98,20 +126,57 @@ jobs:
             const fs = require('fs').promises;
             const path = require('path');
             
-            const uploadUrl = '${{ steps.create_release.outputs.upload_url }}';
+            const uploadUrl = '${{ steps.create_release.outputs.result }}';
             const buildDir = '${{ env.BUILD_DIR }}';
             
-            const files = await fs.readdir(buildDir);
-            for (const file of files) {
-              const filePath = path.join(buildDir, file);
-              const stat = await fs.stat(filePath);
-              if (stat.isFile()) {
-                console.log(`Uploading ${file}...`);
-                await github.rest.repos.uploadReleaseAsset({
-                  url: uploadUrl,
-                  headers: { 'content-type': 'application/octet-stream' },
-                  name: file,
-                  data: await fs.readFile(filePath)
-                });
+            try {
+              const files = await fs.readdir(buildDir);
+              console.log(`Found ${files.length} files in ${buildDir}`);
+              
+              for (const file of files) {
+                const filePath = path.join(buildDir, file);
+                const stat = await fs.stat(filePath);
+                if (stat.isFile()) {
+                  console.log(`Uploading ${file}...`);
+                  const fileContent = await fs.readFile(filePath);
+                  try {
+                    const response = await github.rest.repos.uploadReleaseAsset({
+                      url: uploadUrl,
+                      headers: {
+                        'content-type': 'application/octet-stream',
+                        'content-length': fileContent.length,
+                      },
+                      name: file,
+                      data: fileContent,
+                    });
+                    console.log(`Successfully uploaded ${file}`);
+                  } catch (error) {
+                    console.error(`Failed to upload ${file}: ${error.message}`);
+                  }
+                }
               }
+            } catch (error) {
+              console.error(`Error accessing ${buildDir}: ${error.message}`);
+              throw error;
+            }
+
+      - name: Verify Release
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const release = await github.rest.repos.getRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: '${{ env.TAG }}'
+              });
+              console.log(`Release verification - ID: ${release.data.id}, Name: ${release.data.name}, Tag: ${release.data.tag_name}`);
+              if (!release.data.id) {
+                throw new Error('Release was not created properly');
+              }
+            } catch (error) {
+              console.error(`Failed to verify release: ${error.message}`);
+              throw error;
             }
