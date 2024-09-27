@@ -11,8 +11,8 @@ jobs:
       RELEASE_NAME: Latest release
       RELEASE_BODY: Latest release
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BINARY_PREFIX: pwgen
-      SOURCE_PATH: cmd/pwgen
+      BINARY_PREFIX: chap
+      SOURCE_PATH: .
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v2
