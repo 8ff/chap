@@ -52,9 +52,8 @@ jobs:
     - name: Create or Update Release
       id: create_release
       run: |
-        ls -al bin
-        gh release view latest || gh release create latest --title "latest" --notes "Latest release"
-        gh release upload latest bin/* --clobber
+        gh release view latest || gh release create latest ./bin/* --title "latest" --notes "Latest release"
+        gh release upload latest ./bin/*
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
