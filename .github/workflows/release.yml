@@ -53,7 +53,7 @@ jobs:
       id: create_release
       run: |
         gh release view latest || gh release create latest ./bin/* --title "latest" --notes "Latest release"
-        gh release upload latest ./bin/*
+        gh release upload latest ./bin/* --clobber
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
