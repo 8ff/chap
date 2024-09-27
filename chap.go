@@ -19,13 +19,13 @@ func main() {
 	defer handlePanic() // Ensure key is wiped even on panic
 
 	// Display help menu if no arguments are provided or if help is requested
-	if len(os.Args) < 2 || os.Args[1] == "help" || os.Args[1] == "--help" || os.Args[1] == "-h" {
+	if len(os.Args) < 2 || os.Args[1] == "help" || os.Args[1] == "--help" || os.Args[1] == "-h" || os.Args[1] == "h" {
 		showUsageAndExit()
 	}
 
 	// Handle the command
 	switch os.Args[1] {
-	case "e", "d":
+	case "e", "d", "-e", "-d", "--encrypt", "--decrypt", "encrypt", "decrypt":
 		key := getKeyFromEnv("CKEY")
 		c, err := cipher.Init(cipher.Params{KeySize: len(key), Key: key})
 		if err != nil {
@@ -34,7 +34,7 @@ func main() {
 		}
 		defer wipeKey(&key) // Securely wipe the key from memory after usage
 
-		if os.Args[1] == "e" {
+		if os.Args[1] == "e" || os.Args[1] == "-e" || os.Args[1] == "--encrypt" || os.Args[1] == "encrypt" {
 			if err := c.StreamEncrypt(os.Stdin, os.Stdout, 1024); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to encrypt data: %v\n", err)
 				os.Exit(1)
@@ -46,7 +46,7 @@ func main() {
 			}
 		}
 
-	case "w", "wipe":
+	case "w", "wipe", "-w", "--wipe":
 		if len(os.Args) != 3 {
 			fmt.Fprintf(os.Stderr, "Usage: %s wipe <path>\n", filepath.Base(os.Args[0]))
 			os.Exit(1)
@@ -144,10 +144,10 @@ func showUsageAndExit() {
 	binaryName := filepath.Base(os.Args[0])
 	fmt.Fprintf(os.Stderr, "Usage: %s <command> [options]\n", binaryName)
 	fmt.Fprintf(os.Stderr, "Commands:\n")
-	fmt.Fprintf(os.Stderr, "  e      Encrypt data from stdin to stdout (requires CKEY env var)\n")
-	fmt.Fprintf(os.Stderr, "  d      Decrypt data from stdin to stdout (requires CKEY env var)\n")
-	fmt.Fprintf(os.Stderr, "  wipe   Securely wipe the specified file\n")
-	fmt.Fprintf(os.Stderr, "  help   Display this help menu\n")
+	fmt.Fprintf(os.Stderr, "  [e, -e, encrypt, --encrypt]      Encrypt data from stdin to stdout (requires CKEY env var)\n")
+	fmt.Fprintf(os.Stderr, "  [d, -d, decrypt, --decrypt]      Decrypt data from stdin to stdout (requires CKEY env var)\n")
+	fmt.Fprintf(os.Stderr, "  [w, -w, wipe, --wipe]   Securely wipe the specified file\n")
+	fmt.Fprintf(os.Stderr, "  [h, -h, help, --help]   Display this help menu\n")
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "  %s e < inputfile > outputfile   Encrypt inputfile and save to outputfile\n", binaryName)
 	fmt.Fprintf(os.Stderr, "  %s d < inputfile > outputfile   Decrypt inputfile and save to outputfile\n", binaryName)
