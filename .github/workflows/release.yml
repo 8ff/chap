@@ -29,7 +29,27 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p build
-          PLATFORMS=("darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64" "windows/amd64" "windows/arm64")
+          PLATFORMS=(
+            "darwin/arm64"
+            "darwin/amd64"
+            "linux/arm64"
+            "linux/amd64"
+            "windows/amd64"
+            "windows/arm64"
+            "freebsd/386"
+            "freebsd/amd64"
+            "freebsd/arm"
+            "freebsd/arm64"
+            "openbsd/386"
+            "openbsd/amd64"
+            "openbsd/arm"
+            "openbsd/arm64"
+            "dragonfly/amd64"
+            "netbsd/386"
+            "netbsd/amd64"
+            "netbsd/arm"
+            "netbsd/arm64"
+          )
           for PLATFORM in "${PLATFORMS[@]}"; do
             GOOS=${PLATFORM%/*}
             GOARCH=${PLATFORM#*/}
