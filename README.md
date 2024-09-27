@@ -1,6 +1,7 @@
+![logo](media/logo_600x200.svg "CHAP: Secure Your Data with Ease")
 # CHAP: Secure Your Data with Ease
 
-**CHAP** (short for *chachapoly*) is a tool for encryption, decryption, and secure file wiping. It leverages the [cipherbox](https://github.com/8ff/cipherbox) library as a wrapper for the **ChaCha20-Poly1305** cipher and **scrypt** key derivation, providing strong data protection. 
+**CHAP** (short for *chachapoly*) is a tool for encryption, decryption, and secure file wiping. It leverages the [cipherbox](https://github.com/8ff/cipherbox) library as a wrapper for the **ChaCha20-Poly1305** cipher and **scrypt** key derivation, providing strong data protection.
 
 ## Features
 - **Encrypt** (`e`): Secure your data with strong encryption. (Requires `CKEY` environment variable)
