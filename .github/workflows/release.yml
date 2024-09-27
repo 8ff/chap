@@ -78,15 +78,30 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v6
         with:
-          tag_name: ${{ env.TAG }}
-          release_name: ${{ env.RELEASE_NAME }}
-          body: ${{ github.event.inputs.releaseNote || 'Automated release' }}
-          draft: false
-          prerelease: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const maxRetries = 3;
+            for (let i = 0; i < maxRetries; i++) {
+              try {
+                const release = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: '${{ env.TAG }}',
+                  name: '${{ env.RELEASE_NAME }}',
+                  body: '${{ github.event.inputs.releaseNote || 'Automated release' }}',
+                  draft: false,
+                  prerelease: false
+                });
+                console.log(`Release created: ${release.data.html_url}`);
+                return release.data.upload_url;
+              } catch (error) {
+                console.error(`Attempt ${i + 1} failed: ${error.message}`);
+                if (i === maxRetries - 1) throw error;
+                await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retrying
+              }
+            }
 
       - name: Upload Release Assets
         env:
@@ -98,7 +113,7 @@ jobs:
             const fs = require('fs').promises;
             const path = require('path');
             
-            const uploadUrl = '${{ steps.create_release.outputs.upload_url }}';
+            const uploadUrl = '${{ steps.create_release.outputs.result }}';
             const buildDir = '${{ env.BUILD_DIR }}';
             
             const files = await fs.readdir(buildDir);
@@ -115,3 +130,9 @@ jobs:
                 });
               }
             }
+
+      - name: Check release status
+        if: failure()
+        run: |
+          echo "Release creation or asset upload failed. Check the logs for more information."
+          exit 1
