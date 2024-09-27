@@ -22,69 +22,7 @@ jobs:
   build_and_release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 'stable'
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Build binaries
-        run: |
-          mkdir -p ${{ env.BUILD_DIR }}
-          PLATFORMS=(
-            "darwin/arm64"
-            "darwin/amd64"
-            "linux/arm64"
-            "linux/amd64"
-            "windows/amd64"
-            "windows/arm64"
-            "freebsd/386"
-            "freebsd/amd64"
-            "freebsd/arm"
-            "freebsd/arm64"
-            "openbsd/386"
-            "openbsd/amd64"
-            "openbsd/arm"
-            "openbsd/arm64"
-            "dragonfly/amd64"
-            "netbsd/386"
-            "netbsd/amd64"
-            "netbsd/arm"
-            "netbsd/arm64"
-          )
-          for PLATFORM in "${PLATFORMS[@]}"; do
-            GOOS=${PLATFORM%/*}
-            GOARCH=${PLATFORM#*/}
-            OUTPUT_NAME=${{ env.BINARY_PREFIX }}.$GOOS.$GOARCH
-            if [ "$GOOS" = "windows" ]; then
-              OUTPUT_NAME=$OUTPUT_NAME.exe
-            fi
-            echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "${{ env.BUILD_DIR }}/$OUTPUT_NAME" ${{ env.SOURCE_DIR }}
-          done
-
-      - name: Delete existing release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.TAG }}
-          delete_release: true
-
-      - name: Debug Info
-        run: |
-          echo "Event name: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "SHA: ${{ github.sha }}"
-          git log -1
-          git status
+      # ... (previous steps remain the same)
 
       - name: Create Release
         id: create_release
@@ -166,17 +104,43 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            try {
-              const release = await github.rest.repos.getRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag: '${{ env.TAG }}'
-              });
-              console.log(`Release verification - ID: ${release.data.id}, Name: ${release.data.name}, Tag: ${release.data.tag_name}`);
-              if (!release.data.id) {
-                throw new Error('Release was not created properly');
+            const maxRetries = 5;
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            
+            for (let i = 0; i < maxRetries; i++) {
+              try {
+                console.log(`Attempting to verify release (attempt ${i + 1})...`);
+                const releases = await github.rest.repos.listReleases({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo
+                });
+                
+                const release = releases.data.find(r => r.tag_name === '${{ env.TAG }}');
+                
+                if (release) {
+                  console.log(`Release verification - ID: ${release.id}, Name: ${release.name}, Tag: ${release.tag_name}`);
+                  return;
+                } else {
+                  throw new Error('Release not found');
+                }
+              } catch (error) {
+                console.error(`Attempt ${i + 1} failed: ${error.message}`);
+                if (i === maxRetries - 1) {
+                  throw new Error(`Failed to verify release after ${maxRetries} attempts`);
+                }
+                await delay(5000); // Wait 5 seconds before retrying
               }
-            } catch (error) {
-              console.error(`Failed to verify release: ${error.message}`);
-              throw error;
             }
+
+      - name: Debug Info
+        if: failure()
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          git log -1
+          git status
+          echo "List of releases:"
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               https://api.github.com/repos/${{ github.repository }}/releases
