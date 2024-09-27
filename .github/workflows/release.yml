@@ -8,10 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, freebsd-latest]
-        arch: [amd64, arm64]
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -21,15 +18,24 @@ jobs:
       with:
         go-version: '1.23'
 
-    - name: Build the binary
+    - name: Build binaries for multiple OS and architectures
       run: |
-        GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o chap-${{ matrix.os }}-${{ matrix.arch }}
+        GOOS=linux GOARCH=amd64 go build -o chap-linux-amd64
+        GOOS=linux GOARCH=arm64 go build -o chap-linux-arm64
+        GOOS=darwin GOARCH=amd64 go build -o chap-darwin-amd64
+        GOOS=darwin GOARCH=arm64 go build -o chap-darwin-arm64
+        GOOS=freebsd GOARCH=amd64 go build -o chap-freebsd-amd64
 
-    - name: Upload binary as artifact
+    - name: Upload binaries as artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: chap-binary-${{ matrix.os }}-${{ matrix.arch }}
-        path: chap-${{ matrix.os }}-${{ matrix.arch }}
+        name: chap-binaries
+        path: |
+          chap-linux-amd64
+          chap-linux-arm64
+          chap-darwin-amd64
+          chap-darwin-arm64
+          chap-freebsd-amd64
 
   release:
     needs: build
@@ -45,12 +51,7 @@ jobs:
     - name: Download binary artifacts
       uses: actions/download-artifact@v3
       with:
-        name: |
-          chap-binary-ubuntu-latest-amd64,
-          chap-binary-ubuntu-latest-arm64,
-          chap-binary-macos-latest-amd64,
-          chap-binary-macos-latest-arm64,
-          chap-binary-freebsd-latest-amd64
+        name: chap-binaries
 
     - name: Create or Update Release
       id: create_release
