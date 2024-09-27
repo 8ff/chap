@@ -8,7 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, freebsd-latest]
+        arch: [amd64, arm64]
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -20,13 +23,13 @@ jobs:
 
     - name: Build the binary
       run: |
-        go build -o chap
+        GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o chap-${{ matrix.os }}-${{ matrix.arch }}
 
     - name: Upload binary as artifact
       uses: actions/upload-artifact@v3
       with:
-        name: chap-binary
-        path: chap
+        name: chap-binary-${{ matrix.os }}-${{ matrix.arch }}
+        path: chap-${{ matrix.os }}-${{ matrix.arch }}
 
   release:
     needs: build
@@ -39,15 +42,20 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Download binary artifact
+    - name: Download binary artifacts
       uses: actions/download-artifact@v3
       with:
-        name: chap-binary
+        name: |
+          chap-binary-ubuntu-latest-amd64,
+          chap-binary-ubuntu-latest-arm64,
+          chap-binary-macos-latest-amd64,
+          chap-binary-macos-latest-arm64,
+          chap-binary-freebsd-latest-amd64
 
     - name: Create or Update Release
       id: create_release
       run: |
-        gh release create latest ./chap --latest --title "latest" --notes "Latest release"
+        gh release create latest ./chap-* --latest --title "latest" --notes "Latest release"
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
