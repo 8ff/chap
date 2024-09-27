@@ -38,7 +38,7 @@ jobs:
               OUTPUT_NAME=$OUTPUT_NAME.exe
             fi
             echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "build/$OUTPUT_NAME" ./cmd/chapn
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "build/$OUTPUT_NAME" ./cmd/chap
           done
 
       - name: Create Release
