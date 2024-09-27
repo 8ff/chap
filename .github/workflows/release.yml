@@ -20,22 +20,18 @@ jobs:
 
     - name: Build binaries for multiple OS and architectures
       run: |
-        GOOS=linux GOARCH=amd64 go build -o chap-linux-amd64
-        GOOS=linux GOARCH=arm64 go build -o chap-linux-arm64
-        GOOS=darwin GOARCH=amd64 go build -o chap-darwin-amd64
-        GOOS=darwin GOARCH=arm64 go build -o chap-darwin-arm64
-        GOOS=freebsd GOARCH=amd64 go build -o chap-freebsd-amd64
+        mkdir -p bin
+        GOOS=linux GOARCH=amd64 go build -o bin/chap-linux-amd64
+        GOOS=linux GOARCH=arm64 go build -o bin/chap-linux-arm64
+        GOOS=darwin GOARCH=amd64 go build -o bin/chap-darwin-amd64
+        GOOS=darwin GOARCH=arm64 go build -o bin/chap-darwin-arm64
+        GOOS=freebsd GOARCH=amd64 go build -o bin/chap-freebsd-amd64
 
     - name: Upload binaries as artifacts
       uses: actions/upload-artifact@v3
       with:
         name: chap-binaries
-        path: |
-          chap-linux-amd64
-          chap-linux-arm64
-          chap-darwin-amd64
-          chap-darwin-arm64
-          chap-freebsd-amd64
+        path: bin/*
 
   release:
     needs: build
@@ -56,8 +52,8 @@ jobs:
     - name: Create or Update Release
       id: create_release
       run: |
-        gh release view latest || gh release create latest ./chap-* --title "latest" --notes "Latest release"
-        gh release upload latest ./chap-*
+        gh release view latest || gh release create latest ./bin/* --title "latest" --notes "Latest release"
+        gh release upload latest ./bin/*
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
