@@ -9,7 +9,7 @@ env:
   TAG: latest
   RELEASE_NAME: Latest release
   RELEASE_BODY: Latest release
-  BINARY_PREFIX: pwgen
+  BINARY_PREFIX: chap
 
 jobs:
   build_and_release:
@@ -38,7 +38,7 @@ jobs:
               OUTPUT_NAME=$OUTPUT_NAME.exe
             fi
             echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "build/$OUTPUT_NAME" ./cmd/pwgen
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "build/$OUTPUT_NAME" ./cmd/chapn
           done
 
       - name: Create Release
