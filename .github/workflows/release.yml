@@ -1,146 +1,78 @@
-name: Build and Release
-
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      releaseNote:
-        description: 'Release Note'
-        required: false
-        default: 'Manual release'
-
-env:
-  TAG: latest
-  RELEASE_NAME: Latest release
-  BINARY_PREFIX: chap
-  BUILD_DIR: build
-  SOURCE_DIR: .
-
+name: Build and Release
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
+    env: # Define environment variables here
+      TAG: latest
+      RELEASE_NAME: Latest release
+      RELEASE_BODY: Latest release
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BINARY_PREFIX: chap
+      SOURCE_PATH: .
     steps:
-      # ... (previous steps remain the same)
-
-      - name: Create Release
-        id: create_release
-        uses: actions/github-script@v6
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+      - name: Set up Go
+        uses: actions/setup-go@v2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const eventName = '${{ github.event_name }}';
-            const releaseNote = eventName === 'workflow_dispatch' 
-              ? '${{ github.event.inputs.releaseNote || 'Manual release' }}'
-              : `Automated release for commit ${process.env.GITHUB_SHA.substring(0, 7)}`;
-            
-            try {
-              const release = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: '${{ env.TAG }}',
-                name: '${{ env.RELEASE_NAME }}',
-                body: releaseNote,
-                draft: false,
-                prerelease: false,
-                generate_release_notes: true
-              });
-              console.log(`Release created successfully: ${release.data.html_url}`);
-              return release.data.upload_url;
-            } catch (error) {
-              console.error(`Failed to create release: ${error.message}`);
-              throw error;
-            }
-
-      - name: Upload Release Assets
-        if: success()
+          go-version: '*' # Use the latest stable version of Go          
+      - name: Install dependencies
+        run: go mod download
+      - name: Download releaseMaker
+        run: wget https://github.com/8ff/releaseMaker/releases/download/latest/releaseMaker.linux.amd64 -O /tmp/releaseMaker && chmod +x /tmp/releaseMaker
+      
+      - name: Build Darwin ARM64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs').promises;
-            const path = require('path');
-            
-            const uploadUrl = '${{ steps.create_release.outputs.result }}';
-            const buildDir = '${{ env.BUILD_DIR }}';
-            
-            try {
-              const files = await fs.readdir(buildDir);
-              console.log(`Found ${files.length} files in ${buildDir}`);
-              
-              for (const file of files) {
-                const filePath = path.join(buildDir, file);
-                const stat = await fs.stat(filePath);
-                if (stat.isFile()) {
-                  console.log(`Uploading ${file}...`);
-                  const fileContent = await fs.readFile(filePath);
-                  try {
-                    const response = await github.rest.repos.uploadReleaseAsset({
-                      url: uploadUrl,
-                      headers: {
-                        'content-type': 'application/octet-stream',
-                        'content-length': fileContent.length,
-                      },
-                      name: file,
-                      data: fileContent,
-                    });
-                    console.log(`Successfully uploaded ${file}`);
-                  } catch (error) {
-                    console.error(`Failed to upload ${file}: ${error.message}`);
-                  }
-                }
-              }
-            } catch (error) {
-              console.error(`Error accessing ${buildDir}: ${error.message}`);
-              throw error;
-            }
+          OS: darwin
+          ARCH: arm64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH"
+      
+      - name: Build Darwin AMD64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
+        env:
+          OS: darwin
+          ARCH: amd64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH"
+      
+      - name: Build Linux ARM64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
+        env:
+          OS: linux
+          ARCH: arm64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH"
+      
+      - name: Build Linux AMD64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
+        env:
+          OS: linux
+          ARCH: amd64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH"
 
-      - name: Verify Release
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const maxRetries = 5;
-            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            
-            for (let i = 0; i < maxRetries; i++) {
-              try {
-                console.log(`Attempting to verify release (attempt ${i + 1})...`);
-                const releases = await github.rest.repos.listReleases({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo
-                });
-                
-                const release = releases.data.find(r => r.tag_name === '${{ env.TAG }}');
-                
-                if (release) {
-                  console.log(`Release verification - ID: ${release.id}, Name: ${release.name}, Tag: ${release.tag_name}`);
-                  return;
-                } else {
-                  throw new Error('Release not found');
-                }
-              } catch (error) {
-                console.error(`Attempt ${i + 1} failed: ${error.message}`);
-                if (i === maxRetries - 1) {
-                  throw new Error(`Failed to verify release after ${maxRetries} attempts`);
-                }
-                await delay(5000); // Wait 5 seconds before retrying
-              }
-            }
+      - name: Build Windows AMD64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
+        env:
+          OS: windows
+          ARCH: amd64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH.exe"
 
-      - name: Debug Info
-        if: failure()
+      - name: Build Windows ARM64 binary
+        working-directory: ${{ env.SOURCE_PATH }}
+        env:
+          OS: windows
+          ARCH: arm64
+        run: GOOS=$OS GOARCH=$ARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "/tmp/build/${{ env.BINARY_PREFIX }}.$OS.$ARCH.exe"
+
+      - name: Replace Existing Release
+        run: /tmp/releaseMaker replace ${{ github.repository }} ${{ env.TAG }} "${{ env.RELEASE_NAME }}" "${{ env.RELEASE_BODY }}"
+
+      - name: Upload the artifacts
         run: |
-          echo "Event name: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "SHA: ${{ github.sha }}"
-          git log -1
-          git status
-          echo "List of releases:"
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-               -H "Accept: application/vnd.github.v3+json" \
-               https://api.github.com/repos/${{ github.repository }}/releases
+          cd /tmp/build
+          for file in *; do
+            /tmp/releaseMaker upload ${{ github.repository }} ${{ env.TAG }} $file $file
+          done
