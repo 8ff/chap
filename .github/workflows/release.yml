@@ -22,56 +22,7 @@ jobs:
   build_and_release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 'stable'
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Build binaries
-        run: |
-          mkdir -p ${{ env.BUILD_DIR }}
-          PLATFORMS=(
-            "darwin/arm64"
-            "darwin/amd64"
-            "linux/arm64"
-            "linux/amd64"
-            "windows/amd64"
-            "windows/arm64"
-            "freebsd/386"
-            "freebsd/amd64"
-            "freebsd/arm"
-            "freebsd/arm64"
-            "openbsd/386"
-            "openbsd/amd64"
-            "openbsd/arm"
-            "openbsd/arm64"
-            "dragonfly/amd64"
-            "netbsd/386"
-            "netbsd/amd64"
-            "netbsd/arm"
-            "netbsd/arm64"
-          )
-          for PLATFORM in "${PLATFORMS[@]}"; do
-            GOOS=${PLATFORM%/*}
-            GOARCH=${PLATFORM#*/}
-            OUTPUT_NAME=${{ env.BINARY_PREFIX }}.$GOOS.$GOARCH
-            if [ "$GOOS" = "windows" ]; then
-              OUTPUT_NAME=$OUTPUT_NAME.exe
-            fi
-            echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X 'main.Version=$(date +'%Y-%m-%d_%H:%M:%S')'" -o "${{ env.BUILD_DIR }}/$OUTPUT_NAME" ${{ env.SOURCE_DIR }}
-          done
-
-      - name: Check build directory
-        run: |
-          echo "Contents of ${{ env.BUILD_DIR }}:"
-          ls -la ${{ env.BUILD_DIR }}
+      # ... (previous steps remain the same)
 
       - name: Delete existing release
         uses: dev-drprasad/delete-tag-and-release@v0.2.1
@@ -88,9 +39,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const maxRetries = 3;
+            let release;
             for (let i = 0; i < maxRetries; i++) {
               try {
-                const release = await github.rest.repos.createRelease({
+                console.log(`Attempting to create release (attempt ${i + 1})...`);
+                release = await github.rest.repos.createRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   tag_name: '${{ env.TAG }}',
@@ -99,16 +52,37 @@ jobs:
                   draft: false,
                   prerelease: false
                 });
-                console.log(`Release created: ${release.data.html_url}`);
-                return release.data.upload_url;
+                console.log(`Release created successfully: ${release.data.html_url}`);
+                break;
               } catch (error) {
                 console.error(`Attempt ${i + 1} failed: ${error.message}`);
                 if (i === maxRetries - 1) throw error;
                 await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retrying
               }
             }
+            if (!release) {
+              throw new Error('Failed to create release after multiple attempts');
+            }
+            return release.data.upload_url;
+
+      - name: Verify Release
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const release = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: '${{ env.TAG }}'
+            });
+            console.log(`Release verification - ID: ${release.data.id}, Name: ${release.data.name}, Tag: ${release.data.tag_name}`);
+            if (!release.data.id) {
+              throw new Error('Release was not created properly');
+            }
 
       - name: Upload Release Assets
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: actions/github-script@v6
