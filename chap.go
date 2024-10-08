@@ -67,9 +67,6 @@ func getKeyFromEnv(envVar string) []byte {
 	if len(key) < expectedKeyLength {
 		key = extendKeyWithFibonacci(key, expectedKeyLength)
 	}
-	if len(key) != expectedKeyLength {
-		log.Fatalf("Invalid key length: expected %d bytes, got %d", expectedKeyLength, len(key))
-	}
 	return key
 }
 
